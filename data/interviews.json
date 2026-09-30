@@ -54,6 +54,17 @@
       "notes": "在线笔试，含 Graph 设计题",
       "post_notes": "",
       "insights": "笔试会给半成品图让你补节点"
+    },
+    {
+      "date": "2026-10-01",
+      "time": "15:00",
+      "company": "郑州xx",
+      "role": "ai",
+      "duration_hours": 1.0,
+      "notes": "agent",
+      "post_notes": "",
+      "stage": "一面",
+      "insights": ""
     }
   ]
 }

@@ -54,11 +54,11 @@ curl localhost:8000/api/journal
 | 角色 | 实现 |
 | --- | --- |
 | supervisor | LLM 总控：分派单驱动条件边 + 下游 prompt（life / study / **interview**） |
-| life_agent | 工具环：`read_life_context` + `list_interviews` |
+| life_agent | 工具环：`read_life_context` + `list_interviews`（MCP 优先，失败回退本地） |
 | study_agent | LLM：拆 study（略超预算） |
 | budget_agent | `apply_time_budget`：固定安排不砍，只砍学习 |
 | interview_analyst | `analyze_interviews` 纯规则统计 → 复盘 + 建议 |
 | synthesizer | 今日板 / 求职报告 `summary` |
 | evidence → reviewer | 取证 + 复盘（表现复盘 vs 准备提示） |
 
-故意砍掉：登录、向量库、A2A、真日历 API、SSO、HITL、Eval 平台、投递 CRM 看板、面经 RAG。
+**工具层**：真本地 MCP stdio（`python -m app.mcp_server`，工作目录为项目根，`data/*.json` 可解析）；Agent 优先经 langchain-mcp-adapters 调 MCP，失败/超时回退本地函数。不要 Zapier/Gmail。

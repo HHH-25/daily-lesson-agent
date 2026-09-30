@@ -17,8 +17,10 @@ from app.tools import (
     EVIDENCE_TOOLS,
     LIFE_TOOLS,
     build_life_tasks,
+    invoke_mcp_tool,
     invoke_tool,
     peek_has_life_load,
+    select_agent_tools,
     today_context_bundle,
 )
 
@@ -60,6 +62,7 @@ def _tc_public(call: dict) -> dict:
         "input": call.get("input"),
         "output": call.get("output", ""),
         "agent": call.get("agent") or "",
+        "via": call.get("via") or "local",
     }
 
 
@@ -75,8 +78,9 @@ def _run_tool_loop(
     """LLM 工具环；失败或未调工具时走确定性兜底。返回 (final_text, tool_calls, logs)。"""
     logs: list[dict] = []
     tool_calls_out: list[dict] = []
-    tool_map = {t.name: t for t in tools}
-    llm = get_llm().bind_tools(tools)
+    bind_tools, mcp_map = select_agent_tools(tools)
+    tool_map = {t.name: t for t in bind_tools}
+    llm = get_llm().bind_tools(bind_tools)
     messages: list = [SystemMessage(content=system), HumanMessage(content=user)]
     logs.append(_log(agent_name, "input", user))
 
@@ -98,37 +102,53 @@ def _run_tool_loop(
             call_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", name)
             if not isinstance(args, dict):
                 args = {}
-            try:
-                gateway = invoke_tool(name, args, agent=agent_name)
-            except Exception as exc:  # noqa: BLE001
-                # 参数错：尝试 StructuredTool 自带 invoke，再不行记错误
+            gateway = None
+            if name in mcp_map:
                 try:
-                    tool = tool_map[name]
-                    raw = tool.invoke(args)
-                    data = json.loads(raw) if isinstance(raw, str) else raw
-                    gateway = {
-                        "tool": name,
-                        "input": args or None,
-                        "output": raw if isinstance(raw, str) else json.dumps(data, ensure_ascii=False),
-                        "data": data,
-                        "agent": agent_name,
-                    }
-                except Exception:  # noqa: BLE001
-                    gateway = {
-                        "tool": name,
-                        "input": args or None,
-                        "output": json.dumps({"error": str(exc)}, ensure_ascii=False),
-                        "data": {"error": str(exc)},
-                        "agent": agent_name,
-                    }
-                    logs.append(_log(agent_name, "error", f"tool {name}: {exc}"))
+                    gateway = invoke_mcp_tool(mcp_map[name], name, args, agent=agent_name)
+                except Exception as mcp_exc:  # noqa: BLE001
+                    logs.append(
+                        _log(agent_name, "error", f"MCP {name} failed, fallback local: {mcp_exc}")
+                    )
+            if gateway is None:
+                try:
+                    gateway = invoke_tool(name, args, agent=agent_name)
+                except Exception as exc:  # noqa: BLE001
+                    # 参数错：尝试 StructuredTool 自带 invoke，再不行记错误
+                    try:
+                        tool = tool_map[name]
+                        raw = tool.invoke(args)
+                        data = json.loads(raw) if isinstance(raw, str) else raw
+                        gateway = {
+                            "tool": name,
+                            "input": args or None,
+                            "output": raw if isinstance(raw, str) else json.dumps(data, ensure_ascii=False),
+                            "data": data,
+                            "agent": agent_name,
+                            "via": "mcp" if name in mcp_map else "local",
+                        }
+                    except Exception:  # noqa: BLE001
+                        gateway = {
+                            "tool": name,
+                            "input": args or None,
+                            "output": json.dumps({"error": str(exc)}, ensure_ascii=False),
+                            "data": {"error": str(exc)},
+                            "agent": agent_name,
+                            "via": "local",
+                        }
+                        logs.append(_log(agent_name, "error", f"tool {name}: {exc}"))
 
             tool_calls_out.append(_tc_public(gateway))
             logs.append(
                 _log(
                     agent_name,
                     "tool_call",
-                    {"tool": gateway["tool"], "input": gateway["input"], "agent": agent_name},
+                    {
+                        "tool": gateway["tool"],
+                        "input": gateway["input"],
+                        "agent": agent_name,
+                        "via": gateway.get("via") or "local",
+                    },
                 )
             )
             logs.append(
@@ -158,6 +178,7 @@ def _run_tool_loop(
                         "input": gateway["input"],
                         "agent": agent_name,
                         "fallback": True,
+                        "via": gateway.get("via") or "local",
                     },
                 )
             )

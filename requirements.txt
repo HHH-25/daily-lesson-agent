@@ -5,3 +5,5 @@ langgraph-checkpoint-sqlite
 fastapi
 uvicorn[standard]
 python-dotenv
+mcp
+langchain-mcp-adapters

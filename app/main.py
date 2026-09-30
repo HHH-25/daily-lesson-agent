@@ -86,6 +86,7 @@ def api_plan(body: PlanRequest) -> PlanResponse:
                 input=tc.get("input"),
                 output=tc.get("output", ""),
                 agent=tc.get("agent") or "",
+                via=tc.get("via") or "local",
             )
         )
 
@@ -185,6 +186,7 @@ def api_analyze(body: AnalyzeRequest) -> AnalyzeResponse:
                 input=tc.get("input"),
                 output=tc.get("output", ""),
                 agent=tc.get("agent") or "",
+                via=tc.get("via") or "local",
             )
         )
 

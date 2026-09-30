@@ -773,7 +773,7 @@
       tl.innerHTML = tcs.map((t) => {
         let body = t.output;
         try { body = JSON.stringify(JSON.parse(t.output), null, 2); } catch (_) {}
-        return `<div class="tl-item"><div class="who">${escapeHtml(t.agent || "tool")} · ${escapeHtml(t.tool)}</div><pre>${escapeHtml(body)}</pre></div>`;
+        return `<div class="tl-item"><div class="who">${escapeHtml(t.agent || "tool")} · ${escapeHtml(t.tool)}${t.via ? " · " + escapeHtml(t.via) : ""}</div><pre>${escapeHtml(body)}</pre></div>`;
       }).join("");
     }
 

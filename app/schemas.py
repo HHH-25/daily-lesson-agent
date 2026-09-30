@@ -15,6 +15,7 @@ class ToolCallItem(BaseModel):
     input: Any = None
     output: str
     agent: str = ""
+    via: str = "local"
 
 
 class PlanResponse(BaseModel):

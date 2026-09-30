@@ -1,13 +1,18 @@
-"""Tool Gateway：StructuredTool + invoke_tool（MCP 形态本地源）。"""
+"""Tool Gateway：StructuredTool + invoke_tool；真本地 MCP stdio，失败回退本地函数。"""
 from __future__ import annotations
 
+import asyncio
 import json
+import os
+import sys
+import threading
 import time
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date as date_cls
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
@@ -321,6 +326,137 @@ TOOL_REGISTRY: dict[str, Any] = {
 }
 
 
+MCP_CONNECT_TIMEOUT_S = 12.0
+MCP_TOOL_TIMEOUT_S = 12.0
+
+_mcp_lock = threading.Lock()
+_mcp_tools_cache: Optional[list] = None
+_mcp_load_failed = False
+
+
+def _run_async(factory: Callable[[], Any], timeout_s: float) -> Any:
+    """在无事件循环的线程里跑 coroutine；已有 loop 时另开线程，避免 FastAPI 卡死。"""
+
+    def _runner() -> Any:
+        return asyncio.run(asyncio.wait_for(factory(), timeout=timeout_s))
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return _runner()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(_runner).result(timeout=timeout_s + 2.0)
+
+
+def _normalize_tool_payload(raw: Any) -> tuple[Any, str]:
+    """把 MCP/LangChain 返回值收成 (data, output_json_str)，兼容 content-block 列表。"""
+    if isinstance(raw, list) and raw and isinstance(raw[0], dict) and "text" in raw[0]:
+        text = "".join(str(block.get("text") or "") for block in raw if isinstance(block, dict))
+        raw = text
+    if isinstance(raw, str):
+        text = raw.strip()
+        try:
+            data = json.loads(text)
+            return data, json.dumps(data, ensure_ascii=False)
+        except json.JSONDecodeError:
+            return {"text": text}, text
+    if isinstance(raw, (dict, list)):
+        return raw, json.dumps(raw, ensure_ascii=False)
+    text = str(raw)
+    try:
+        data = json.loads(text)
+        return data, json.dumps(data, ensure_ascii=False)
+    except json.JSONDecodeError:
+        return {"text": text}, text
+
+
+def load_mcp_tools() -> list:
+    """连接本地 stdio MCP Server，返回 LangChain tool 列表（进程级缓存）。失败返回空列表。"""
+    global _mcp_tools_cache, _mcp_load_failed
+    with _mcp_lock:
+        if _mcp_load_failed:
+            return []
+        if _mcp_tools_cache is not None:
+            return list(_mcp_tools_cache)
+
+    try:
+        from langchain_mcp_adapters.client import MultiServerMCPClient
+
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(ROOT) + os.pathsep + env.get("PYTHONPATH", "")
+        env["PYTHONUNBUFFERED"] = "1"
+
+        async def _fetch() -> list:
+            client = MultiServerMCPClient(
+                {
+                    "daily": {
+                        "transport": "stdio",
+                        "command": sys.executable,
+                        "args": ["-m", "app.mcp_server"],
+                        "cwd": str(ROOT),
+                        "env": env,
+                    }
+                }
+            )
+            return await client.get_tools()
+
+        tools = _run_async(_fetch, MCP_CONNECT_TIMEOUT_S)
+        if not tools:
+            raise RuntimeError("MCP get_tools returned empty")
+        with _mcp_lock:
+            _mcp_tools_cache = list(tools)
+        return list(tools)
+    except Exception:  # noqa: BLE001
+        with _mcp_lock:
+            _mcp_load_failed = True
+            _mcp_tools_cache = None
+        return []
+
+
+def select_agent_tools(local_tools: list) -> tuple[list, dict[str, Any]]:
+    """优先绑定 MCP tools；返回 (bind_tools, mcp_by_name)。MCP 不可用则用本地 StructuredTool。"""
+    wanted = {t.name for t in local_tools}
+    mcp_list = load_mcp_tools()
+    mcp_map = {t.name: t for t in mcp_list if getattr(t, "name", None) in wanted}
+    if not mcp_map:
+        return local_tools, {}
+    bound = [mcp_map.get(t.name, t) for t in local_tools]
+    return bound, mcp_map
+
+
+def invoke_mcp_tool(
+    tool: Any,
+    name: str,
+    args: Optional[dict] = None,
+    *,
+    agent: str = "",
+    timeout_s: float = MCP_TOOL_TIMEOUT_S,
+) -> dict[str, Any]:
+    """调用 LangChain-MCP 适配后的 tool；超时或失败抛异常，由节点回退 invoke_tool。"""
+    args = args or {}
+    started = time.monotonic()
+
+    def _call() -> Any:
+        return tool.invoke(args)
+
+    try:
+        raw = _run_async(lambda: tool.ainvoke(args), timeout_s)
+    except NotImplementedError:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            raw = pool.submit(_call).result(timeout=timeout_s)
+    data, output = _normalize_tool_payload(raw)
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+    return {
+        "tool": name,
+        "input": args if args else None,
+        "output": output,
+        "data": data,
+        "agent": agent,
+        "elapsed_ms": elapsed_ms,
+        "via": "mcp",
+    }
+
+
 def invoke_tool(
     name: str,
     args: Optional[dict] = None,
@@ -328,7 +464,7 @@ def invoke_tool(
     agent: str = "",
     timeout_s: float = 5.0,
 ) -> dict[str, Any]:
-    """统一 Tool Gateway：审计字段 + 超时占位。"""
+    """统一 Tool Gateway：本地函数 + 审计字段。via 恒为 local。"""
     args = args or {}
     started = time.monotonic()
     if name not in TOOL_REGISTRY:
@@ -345,6 +481,7 @@ def invoke_tool(
         "data": data,
         "agent": agent,
         "elapsed_ms": elapsed_ms,
+        "via": "local",
     }
 
 
