@@ -2,7 +2,7 @@
 
 自学目标 → **Supervisor 分派** → Life/Study 并行 → Budget（`apply_time_budget`）→ Synthesizer 今日板；晚间 Evidence → Reviewer；求职 **Interview Analyst**（`analyze_interviews`）→ 复盘建议。
 
-技术说明：[DESIGN.md](DESIGN.md) / [REQUIREMENTS.md](REQUIREMENTS.md) / [IMPLEMENTATION.md](IMPLEMENTATION.md) / [PLAN.md](PLAN.md)。
+设计说明：[说明.md](说明.md)。
 
 ## 启动
 
