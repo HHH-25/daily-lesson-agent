@@ -5,3 +5,10 @@ __pycache__/
 *.pyc
 .Python
 key-deepseek.txt
+
+# 内部工作/应试文档（本地保留，不进公开仓库）
+DESIGN.md
+REQUIREMENTS.md
+IMPLEMENTATION.md
+PLAN.md
+演练.md
