@@ -1,0 +1,28 @@
+{
+  "meetings": [
+    {
+      "time": "21:30",
+      "title": "线上会议",
+      "duration_hours": 1.0
+    },
+    {
+      "time": "22:00",
+      "title": "smoke-meet",
+      "duration_hours": 0.5
+    }
+  ],
+  "blocks": [
+    {
+      "time": "20:00",
+      "note": "之后无整块时间"
+    },
+    {
+      "time": "19:00",
+      "note": "smoke-block"
+    }
+  ],
+  "notes": [
+    "今晚早点收尾",
+    "smoke-note-str"
+  ]
+}

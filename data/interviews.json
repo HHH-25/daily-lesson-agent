@@ -1,0 +1,59 @@
+{
+  "interviews": [
+    {
+      "date": "2026-09-30",
+      "time": "14:00",
+      "company": "讴谱科技",
+      "role": "多Agent工程师",
+      "stage": "一面",
+      "duration_hours": 1.5,
+      "notes": "技术面，重点问 LangGraph",
+      "post_notes": "问了状态合并，我答得含糊；reducer 举例没讲清。",
+      "insights": "这家偏好问状态管理与工具调用，面试官是技术负责人"
+    },
+    {
+      "date": "2026-09-28",
+      "time": "10:00",
+      "company": "星河智能",
+      "role": "多Agent工程师",
+      "stage": "二面",
+      "duration_hours": 1.0,
+      "notes": "系统面，准备 Supervisor 编排案例",
+      "post_notes": "",
+      "insights": "二面偏项目深挖，会追问为什么不用 CrewAI"
+    },
+    {
+      "date": "2026-09-25",
+      "time": "16:00",
+      "company": "云帆科技",
+      "role": "AI 应用工程师",
+      "stage": "网申",
+      "duration_hours": 0.5,
+      "notes": "已投递，等笔试通知",
+      "post_notes": "",
+      "insights": ""
+    },
+    {
+      "date": "2026-09-20",
+      "time": "11:00",
+      "company": "北极光",
+      "role": "后端工程师",
+      "stage": "已拒",
+      "duration_hours": 1.0,
+      "notes": "一面答了 RPC 与超时",
+      "post_notes": "超时重试讲得乱",
+      "insights": "偏基础后端，Agent 经验不是加分项"
+    },
+    {
+      "date": "2026-09-15",
+      "time": "15:00",
+      "company": "澜起数科",
+      "role": "多Agent工程师",
+      "stage": "笔试",
+      "duration_hours": 2.0,
+      "notes": "在线笔试，含 Graph 设计题",
+      "post_notes": "",
+      "insights": "笔试会给半成品图让你补节点"
+    }
+  ]
+}

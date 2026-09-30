@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>自我学习生活多 Agent 管理平台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f4f5f8;
+      --sidebar: #ffffff;
+      --panel: #ffffff;
+      --ink: #1a1d26;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --accent: #6d5efc;
+      --accent-soft: #efeefc;
+      --ok: #059669;
+      --warn: #d97706;
+      --life: #0369a1;
+      --cut: #9ca3af;
+      --danger: #dc2626;
+      --radius: 12px;
+      --shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.06);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "IBM Plex Sans SC", "IBM Plex Sans", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      display: flex;
+    }
+    .sidebar {
+      width: 240px;
+      flex-shrink: 0;
+      background: var(--sidebar);
+      border-right: 1px solid var(--line);
+      padding: 1.25rem 0.9rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+    .brand {
+      padding: 0.35rem 0.55rem 0.75rem;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand .logo {
+      font-weight: 700;
+      font-size: 0.95rem;
+      letter-spacing: -0.02em;
+      color: var(--accent);
+      line-height: 1.35;
+    }
+    .nav-group { display: flex; flex-direction: column; gap: 0.25rem; }
+    .nav-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      padding: 0.4rem 0.65rem;
+    }
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      border: none;
+      background: transparent;
+      text-align: left;
+      font: inherit;
+      font-size: 0.92rem;
+      font-weight: 500;
+      color: var(--muted);
+      padding: 0.65rem 0.75rem;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .nav-btn:hover { background: #f3f4f6; color: var(--ink); }
+    .nav-btn.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+    .main {
+      flex: 1;
+      min-width: 0;
+      padding: 1.5rem 1.75rem 2.5rem;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .topbar h1 {
+      margin: 0;
+      font-size: 1.45rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .topbar p { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.9rem; }
+    .badge {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-soft);
+      border-radius: 999px;
+      padding: 0.2rem 0.55rem;
+    }
+    .screen { display: none; }
+    .screen.active { display: block; animation: fade .25s ease; }
+    @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1.1rem 1.2rem;
+      margin-bottom: 1rem;
+    }
+    .card h2 {
+      margin: 0 0 0.85rem;
+      font-size: 0.95rem;
+      font-weight: 650;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 1rem;
+    }
+    @media (max-width: 960px) {
+      body { flex-direction: column; }
+      .sidebar { width: 100%; height: auto; position: static; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .agent-grid { grid-template-columns: 1fr; }
+    }
+    label {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 0.3rem;
+      font-weight: 500;
+    }
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0.65rem 0.75rem;
+      font: inherit;
+      background: #fff;
+      color: var(--ink);
+    }
+    textarea { min-height: 90px; resize: vertical; }
+    .row { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-end; }
+    .row > * { flex: 1; min-width: 120px; }
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 0.7rem 1rem;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn:disabled { opacity: .55; cursor: wait; }
+    .btn.ghost {
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+    .callout {
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+      background: #eef6ff;
+      border: 1px solid #cfe3ff;
+      color: #0c4a6e;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+    .synth {
+      border-radius: 12px;
+      padding: 0.9rem 1rem;
+      background: linear-gradient(135deg, #f5f3ff 0%, #eef6ff 100%);
+      border: 1px solid #ddd6fe;
+      color: #312e81;
+      font-size: 0.92rem;
+      line-height: 1.55;
+      margin-bottom: 1rem;
+      display: none;
+    }
+    .synth strong { display: block; margin-bottom: 0.35rem; font-size: 0.8rem; letter-spacing: 0.04em; }
+    .hint {
+      border-radius: 12px;
+      padding: 0.75rem 1rem;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      color: #9a3412;
+      font-size: 0.88rem;
+      margin-bottom: 1rem;
+    }
+    .summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin: 0.75rem 0 0.25rem;
+      font-size: 0.88rem;
+    }
+    .pill {
+      border-radius: 999px;
+      padding: 0.25rem 0.7rem;
+      background: #f3f4f6;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .pill.over { background: #fee2e2; color: var(--danger); }
+    .pill.ok { background: #d1fae5; color: var(--ok); }
+    .task {
+      display: flex;
+      gap: 0.7rem;
+      align-items: flex-start;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .task:last-child { border-bottom: none; }
+    .task input[type=checkbox] { margin-top: 0.3rem; width: auto; }
+    .task .meta { flex: 1; min-width: 0; }
+    .task .title { font-weight: 550; }
+    .task .sub { color: var(--muted); font-size: 0.8rem; margin-top: 0.15rem; }
+    .tag {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 650;
+      border-radius: 6px;
+      padding: 0.1rem 0.4rem;
+      margin-left: 0.35rem;
+      vertical-align: middle;
+    }
+    .tag.study { background: var(--accent-soft); color: var(--accent); }
+    .tag.life { background: #e0f2fe; color: var(--life); }
+    .tag.cut { background: #f3f4f6; color: var(--cut); }
+    .tag.done { background: #d1fae5; color: var(--ok); }
+    .tag.stage { background: #fef3c7; color: #92400e; }
+    .tag.stage-offer { background: #d1fae5; color: var(--ok); }
+    .tag.stage-reject { background: #fee2e2; color: var(--danger); }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.65rem;
+      margin-bottom: 0.85rem;
+    }
+    .stat-box {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0.7rem 0.8rem;
+      background: #fafafa;
+    }
+    .stat-box .n { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; }
+    .stat-box .l { font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem; }
+    @media (max-width: 720px) {
+      .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    .muted { color: var(--muted); font-size: 0.88rem; }
+    .empty { color: var(--muted); padding: 0.5rem 0; }
+    .history-day { margin-bottom: 1rem; }
+    .rate {
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 0.4rem;
+    }
+    .rate > span {
+      display: block;
+      height: 100%;
+      background: var(--accent);
+    }
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .agent-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.85rem;
+      background: #fafafa;
+    }
+    .agent-card strong { display: block; margin-bottom: 0.25rem; }
+    .timeline {
+      border-left: 2px solid var(--line);
+      margin-left: 0.4rem;
+      padding-left: 1rem;
+    }
+    .tl-item { margin-bottom: 0.9rem; position: relative; }
+    .tl-item::before {
+      content: "";
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      position: absolute;
+      left: -1.3rem;
+      top: 0.35rem;
+    }
+    .tl-item .who { font-size: 0.78rem; color: var(--accent); font-weight: 650; }
+    .tl-item pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #f9fafb;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0.55rem 0.65rem;
+      font-size: 0.78rem;
+      margin: 0.35rem 0 0;
+      max-height: 160px;
+      overflow: auto;
+    }
+    .status { font-size: 0.82rem; color: var(--muted); min-height: 1.2em; }
+    .review-block {
+      white-space: pre-wrap;
+      line-height: 1.55;
+      font-size: 0.92rem;
+    }
+    .entry-hint {
+      font-size: 0.82rem;
+      color: var(--warn);
+      margin: 0.35rem 0 0.75rem;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.65rem 0.75rem;
+    }
+    .form-grid .full { grid-column: 1 / -1; }
+    @media (max-width: 720px) {
+      .form-grid { grid-template-columns: 1fr; }
+    }
+    details.entry-panel {
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      padding: 0.65rem 0.85rem;
+      margin-top: 0.75rem;
+      background: #fafafa;
+    }
+    details.entry-panel > summary {
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--ink);
+      list-style: none;
+    }
+    details.entry-panel > summary::-webkit-details-marker { display: none; }
+    details.entry-panel[open] > summary { margin-bottom: 0.65rem; }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">自我学习生活多 Agent 管理平台</div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">概览</div>
+      <button class="nav-btn active" data-screen="today">今日</button>
+      <button class="nav-btn" data-screen="goals">目标</button>
+      <button class="nav-btn" data-screen="jobs">求职</button>
+      <button class="nav-btn" data-screen="history">历史</button>
+      <button class="nav-btn" data-screen="agents">Agent 轨迹</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="pageTitle">今日</h1>
+        <p id="pageDesc">Supervisor 分派 → 领域 Agent 调工具 → 预算裁剪 → 今日板。</p>
+      </div>
+      <span class="badge">v0.3 Supervisor</span>
+    </div>
+
+    <section id="screen-today" class="screen active">
+      <div id="yesterdayHint" class="hint" style="display:none"></div>
+      <div id="synthBanner" class="synth"></div>
+      <div class="grid-2">
+        <div class="card">
+          <h2>生成今日课</h2>
+          <div class="row">
+            <div>
+              <label>驱动目标</label>
+              <select id="goalSelect"></select>
+            </div>
+            <div>
+              <label>日期</label>
+              <input id="dateInput" type="date" />
+            </div>
+            <div>
+              <label>今晚还剩（小时）</label>
+              <input id="hoursInput" type="number" min="0.5" step="0.5" value="3.5" />
+            </div>
+            <div style="flex:0 0 auto">
+              <label>&nbsp;</label>
+              <button class="btn" id="btnPlan">生成今日课</button>
+            </div>
+          </div>
+          <p class="status" id="planStatus"></p>
+        </div>
+        <div class="card">
+          <h2>今日预算</h2>
+          <div class="summary" id="budgetSummary">
+            <span class="pill">等待生成</span>
+          </div>
+          <p class="muted" style="margin:0.75rem 0 0">学习可勾选；会议/面试为固定安排，时间紧时只砍学习。</p>
+        </div>
+      </div>
+
+      <div class="callout" id="contextCallout">尚未读取生活上下文。生成今日课后 Life Agent 会调工具。</div>
+
+      <div class="card">
+        <h2>录入面试 / 会议</h2>
+        <p class="entry-hint">写入外部 JSON 源；下次点「生成今日课」才会进入固定安排，不会立刻出现在课表里。</p>
+        <div class="row" style="margin-bottom:0.5rem">
+          <button class="btn ghost" type="button" id="btnToggleInterview">＋面试</button>
+          <button class="btn ghost" type="button" id="btnToggleContext">＋会议/占用</button>
+        </div>
+        <details class="entry-panel" id="panelInterview">
+          <summary>添加面试</summary>
+          <div class="form-grid">
+            <div><label>日期</label><input id="ivDate" type="date" /></div>
+            <div><label>时间</label><input id="ivTime" type="time" value="15:00" /></div>
+            <div><label>公司</label><input id="ivCompany" placeholder="XX 公司" /></div>
+            <div><label>岗位</label><input id="ivRole" placeholder="多 Agent 工程师" /></div>
+            <div><label>时长（小时）</label><input id="ivHours" type="number" min="0.5" step="0.5" value="1" /></div>
+            <div>
+              <label>阶段 stage</label>
+              <select id="ivStage">
+                <option>网申</option>
+                <option>笔试</option>
+                <option selected>一面</option>
+                <option>二面</option>
+                <option>HR面</option>
+                <option>谈薪</option>
+                <option>Offer</option>
+                <option>已拒</option>
+              </select>
+            </div>
+            <div class="full"><label>准备备注 notes</label><input id="ivNotes" placeholder="技术面重点…" /></div>
+            <div class="full"><label>面试后流水账 post_notes（可空）</label><input id="ivPostNotes" placeholder="可选" /></div>
+            <div class="full"><label>公司面经 insights（可空）</label><input id="ivInsights" placeholder="这家偏好问…" /></div>
+          </div>
+          <div style="margin-top:0.75rem">
+            <button class="btn" type="button" id="btnAddInterview">保存面试</button>
+            <span class="status" id="interviewStatus"></span>
+          </div>
+        </details>
+        <details class="entry-panel" id="panelContext">
+          <summary>添加会议 / 占用 / 备注</summary>
+          <div class="form-grid">
+            <div class="full">
+              <label>类型</label>
+              <select id="ctxType">
+                <option value="meeting">会议 meeting</option>
+                <option value="block">占用 block</option>
+                <option value="note">备注 note</option>
+              </select>
+            </div>
+            <div id="ctxTimeWrap"><label>时间</label><input id="ctxTime" type="time" value="21:30" /></div>
+            <div id="ctxTitleWrap"><label>标题</label><input id="ctxTitle" placeholder="线上会议" /></div>
+            <div id="ctxHoursWrap"><label>时长（小时）</label><input id="ctxHours" type="number" min="0.5" step="0.5" value="1" /></div>
+            <div id="ctxNoteWrap" class="full" style="display:none"><label>占用说明</label><input id="ctxNote" placeholder="之后无整块时间" /></div>
+            <div id="ctxTextWrap" class="full" style="display:none"><label>备注文本</label><input id="ctxText" placeholder="今晚早点收尾" /></div>
+          </div>
+          <div style="margin-top:0.75rem">
+            <button class="btn" type="button" id="btnAddContext">保存到上下文</button>
+            <span class="status" id="contextStatus"></span>
+          </div>
+        </details>
+      </div>
+
+      <div class="card">
+        <h2>学习任务</h2>
+        <div id="studyList" class="empty">还没有课表。</div>
+        <div style="margin-top:0.75rem">
+          <button class="btn ghost" id="btnSaveDone">保存勾选</button>
+          <span class="status" id="tasksStatus"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>固定安排（时间紧时只砍学习）</h2>
+        <div id="lifeList" class="empty">无会议 / 面试占用。</div>
+      </div>
+
+      <div class="card">
+        <h2>晚间复盘</h2>
+        <label>覆盖备注（可选）— 空则用面试 JSON 的 post_notes</label>
+        <textarea id="interviewNotes" placeholder="可选：覆盖面试后表现备注…"></textarea>
+        <div style="margin-top:0.75rem">
+          <button class="btn" id="btnReview">生成复盘</button>
+          <span class="status" id="reviewStatus"></span>
+        </div>
+        <div id="reviewOut" style="margin-top:1rem"></div>
+      </div>
+    </section>
+
+    <section id="screen-goals" class="screen">
+      <div class="card">
+        <h2>学习目标</h2>
+        <div id="goalsList" class="empty">加载中…</div>
+      </div>
+      <div class="card">
+        <h2>＋添加目标</h2>
+        <p class="entry-hint">添加后会刷新今日页「驱动目标」下拉；生成今日课使用当前选中的 goal_id。</p>
+        <div class="form-grid">
+          <div class="full"><label>标题</label><input id="goalTitle" placeholder="学 Rust" /></div>
+          <div class="full"><label>描述</label><textarea id="goalDesc" placeholder="可选说明…" style="min-height:70px"></textarea></div>
+        </div>
+        <div style="margin-top:0.75rem">
+          <button class="btn" type="button" id="btnAddGoal">添加目标</button>
+          <span class="status" id="goalStatus"></span>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-jobs" class="screen">
+      <div class="card">
+        <h2>投递统计</h2>
+        <div class="stats-grid" id="jobStats">
+          <div class="stat-box"><div class="n">—</div><div class="l">加载中</div></div>
+        </div>
+        <div id="jobStageBars" class="muted"></div>
+      </div>
+      <div class="card">
+        <h2>生成求职复盘</h2>
+        <p class="entry-hint">Supervisor → Interview Analyst（analyze_interviews）→ Synthesizer；三入口之一。</p>
+        <div class="row">
+          <div>
+            <label>驱动目标</label>
+            <select id="jobGoalSelect"></select>
+          </div>
+          <div style="flex:0 0 auto">
+            <label>&nbsp;</label>
+            <button class="btn" id="btnAnalyze">生成求职复盘</button>
+          </div>
+        </div>
+        <p class="status" id="analyzeStatus"></p>
+        <div id="analyzeOut" style="margin-top:0.75rem"></div>
+      </div>
+      <div class="card">
+        <h2>面试列表</h2>
+        <p class="entry-hint">可改阶段（PATCH）；同日期+时间+公司再次保存会 upsert。</p>
+        <div id="jobsList" class="empty">加载中…</div>
+      </div>
+      <div class="card">
+        <h2>求职 Agent 轨迹</h2>
+        <div id="jobTimeline" class="timeline empty">生成求职复盘后显示工具往返（不依赖 day_id）。</div>
+      </div>
+    </section>
+
+    <section id="screen-history" class="screen">
+      <div class="card">
+        <h2>近 7 天完成率</h2>
+        <div id="historyList" class="empty">加载中…</div>
+      </div>
+    </section>
+
+    <section id="screen-agents" class="screen">
+      <div class="agent-grid">
+        <div class="agent-card"><strong>supervisor</strong><span class="muted">LLM 总控，输出分派单并驱动条件边</span></div>
+        <div class="agent-card"><strong>life_agent</strong><span class="muted">工具环读日程/面试（可跳过）</span></div>
+        <div class="agent-card"><strong>study_agent</strong><span class="muted">按分派拆学习任务</span></div>
+        <div class="agent-card"><strong>budget_agent</strong><span class="muted">apply_time_budget 硬裁剪</span></div>
+        <div class="agent-card"><strong>synthesizer</strong><span class="muted">今日板说明收口</span></div>
+        <div class="agent-card"><strong>interview_analyst</strong><span class="muted">求职：analyze_interviews 统计 + 建议</span></div>
+        <div class="agent-card"><strong>evidence → reviewer</strong><span class="muted">复盘：证据工具环 + LLM</span></div>
+      </div>
+      <div class="card">
+        <h2>协作时间线</h2>
+        <div id="timeline" class="timeline empty">生成课表或复盘后在此展示 Supervisor 分派与工具往返。</div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const state = {
+      goalId: null,
+      dayId: null,
+      journal: null,
+      lastPlan: null,
+      lastAnalyze: null,
+      progressTimer: null,
+    };
+
+    const STAGES = ["网申", "笔试", "一面", "二面", "HR面", "谈薪", "Offer", "已拒"];
+
+    const titles = {
+      today: ["今日", "Supervisor 分派 → 领域 Agent 调工具 → 预算裁剪 → 今日板。"],
+      goals: ["目标", "添加目标，并在今日页选择驱动排课的目标。"],
+      jobs: ["求职", "面试列表 + 投递统计；Supervisor → Interview Analyst → Synthesizer。"],
+      history: ["历史", "近 7 天完成率与课表回顾。"],
+      agents: ["Agent 轨迹", "Supervisor 分派 → 各 Agent 工具往返 → Synthesizer。"],
+    };
+
+    const PLAN_STEPS = [
+      "Supervisor 正在分派…",
+      "Life Agent 正在读日程…",
+      "Study Agent 正在拆学习任务…",
+      "Budget Agent 正在裁剪预算…",
+      "Synthesizer 正在汇总今日板…",
+    ];
+
+    const ANALYZE_STEPS = [
+      "Supervisor 正在分派求职域…",
+      "Interview Analyst 正在聚合投递数据…",
+      "Synthesizer 正在收口求职报告…",
+    ];
+
+    document.querySelectorAll(".nav-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"));
+        document.querySelectorAll(".screen").forEach((s) => s.classList.remove("active"));
+        btn.classList.add("active");
+        const key = btn.dataset.screen;
+        document.getElementById("screen-" + key).classList.add("active");
+        document.getElementById("pageTitle").textContent = titles[key][0];
+        document.getElementById("pageDesc").textContent = titles[key][1];
+      });
+    });
+
+    document.getElementById("dateInput").value = "2026-09-30";
+    document.getElementById("ivDate").value = "2026-09-30";
+
+    function startPlanProgress(statusEl, steps) {
+      const seq = steps || PLAN_STEPS;
+      let i = 0;
+      statusEl.textContent = seq[0];
+      clearInterval(state.progressTimer);
+      state.progressTimer = setInterval(() => {
+        i = Math.min(i + 1, seq.length - 1);
+        statusEl.textContent = seq[i];
+      }, 1800);
+    }
+
+    function stopPlanProgress() {
+      clearInterval(state.progressTimer);
+      state.progressTimer = null;
+    }
+
+    function syncGoalSelect() {
+      const sel = document.getElementById("goalSelect");
+      const jobSel = document.getElementById("jobGoalSelect");
+      const goals = state.journal?.goals || [];
+      const prev = state.goalId;
+      const opts = goals.map((g) =>
+        `<option value="${g.id}">#${g.id} · ${escapeHtml(g.title)}</option>`
+      ).join("");
+      sel.innerHTML = opts;
+      jobSel.innerHTML = opts;
+      if (!goals.length) {
+        state.goalId = null;
+        return;
+      }
+      const keep = goals.find((g) => g.id === prev);
+      state.goalId = keep ? keep.id : goals[0].id;
+      sel.value = String(state.goalId);
+      jobSel.value = String(state.goalId);
+    }
+
+    async function loadJournal() {
+      const res = await fetch("/api/journal");
+      state.journal = await res.json();
+      if (state.journal.days?.length) state.dayId = state.journal.days[0].day_id;
+      syncGoalSelect();
+      renderContext();
+      renderGoals();
+      renderJobs();
+      renderHistory();
+      renderTimelineFromJournal();
+      renderYesterdayHint();
+      if (state.journal.days?.length) renderDayTasks(state.journal.days[0]);
+    }
+
+    function stageTagClass(stage) {
+      if (stage === "Offer") return "tag stage stage-offer";
+      if (stage === "已拒") return "tag stage stage-reject";
+      return "tag stage";
+    }
+
+    function renderJobs() {
+      const stats = state.journal?.interview_stats || state.lastAnalyze?.stats || {};
+      const list = state.journal?.interviews || [];
+      const statsEl = document.getElementById("jobStats");
+      const rate = Math.round((Number(stats.advance_rate) || 0) * 100);
+      statsEl.innerHTML = `
+        <div class="stat-box"><div class="n">${stats.total ?? 0}</div><div class="l">投递总数</div></div>
+        <div class="stat-box"><div class="n">${stats.active ?? 0}</div><div class="l">进行中</div></div>
+        <div class="stat-box"><div class="n">${stats.recent_7d ?? 0} / ${stats.recent_30d ?? 0}</div><div class="l">近7天 / 近30天</div></div>
+        <div class="stat-box"><div class="n">${rate}%</div><div class="l">进入面试占比</div></div>
+      `;
+      const by = stats.by_stage || {};
+      const top = (stats.top_roles || []).map((r) => `${r.role}×${r.count}`).join(" · ") || "—";
+      document.getElementById("jobStageBars").innerHTML =
+        `阶段：${STAGES.map((s) => `${s} ${by[s] || 0}`).join(" · ")}<br>热门岗位：${escapeHtml(top)}`;
+
+      const el = document.getElementById("jobsList");
+      if (!list.length) {
+        el.innerHTML = `<div class="empty">暂无面试记录。可在今日页「＋面试」添加。</div>`;
+        return;
+      }
+      const sorted = [...list].sort((a, b) =>
+        String(b.date).localeCompare(String(a.date)) || String(b.time).localeCompare(String(a.time))
+      );
+      el.innerHTML = sorted.map((iv, idx) => {
+        const stage = iv.stage || "一面";
+        const opts = STAGES.map((s) =>
+          `<option value="${s}" ${s === stage ? "selected" : ""}>${s}</option>`
+        ).join("");
+        return `<div class="task" data-iv-idx="${idx}">
+          <div class="meta" style="width:100%">
+            <div class="title">${escapeHtml(iv.date)} ${escapeHtml(iv.time)} · ${escapeHtml(iv.company)}
+              <span class="${stageTagClass(stage)}">${escapeHtml(stage)}</span>
+            </div>
+            <div class="sub">${escapeHtml(iv.role || "未填岗位")} · ${iv.duration_hours || 1}h
+              ${iv.insights ? " · 面经：" + escapeHtml(iv.insights) : ""}
+            </div>
+            <div class="row" style="margin-top:0.45rem;align-items:center">
+              <div style="flex:0 0 140px">
+                <label>改阶段</label>
+                <select class="iv-stage-select"
+                  data-date="${escapeHtml(iv.date)}"
+                  data-time="${escapeHtml(iv.time)}"
+                  data-company="${escapeHtml(iv.company)}">${opts}</select>
+              </div>
+              <div style="flex:0 0 auto">
+                <label>&nbsp;</label>
+                <button class="btn ghost iv-stage-save" type="button"
+                  data-date="${escapeHtml(iv.date)}"
+                  data-time="${escapeHtml(iv.time)}"
+                  data-company="${escapeHtml(iv.company)}">保存阶段</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }).join("");
+    }
+
+    function renderAnalyzeOut(data) {
+      const el = document.getElementById("analyzeOut");
+      if (!data) { el.innerHTML = ""; return; }
+      el.innerHTML = `
+        <div class="synth" style="display:block;margin-bottom:0.75rem">
+          <strong>SYNTHESIZER · 求职报告</strong>${escapeHtml(data.summary || "")}
+          ${data.assignments?.note ? `<div class="muted" style="margin-top:0.35rem">分派：${escapeHtml(data.assignments.note)}</div>` : ""}
+        </div>
+        <h2 style="font-size:0.95rem;margin:0 0 0.4rem">复盘</h2>
+        <div class="review-block">${escapeHtml(data.analysis || "")}</div>
+        <h2 style="font-size:0.95rem;margin:1rem 0 0.4rem">建议</h2>
+        <div class="review-block">${escapeHtml(data.suggestions || "")}</div>
+      `;
+      const tl = document.getElementById("jobTimeline");
+      const tcs = data.tool_calls || [];
+      if (!tcs.length) {
+        tl.className = "timeline empty";
+        tl.textContent = "本次无工具调用记录。";
+        return;
+      }
+      tl.className = "timeline";
+      tl.innerHTML = tcs.map((t) => {
+        let body = t.output;
+        try { body = JSON.stringify(JSON.parse(t.output), null, 2); } catch (_) {}
+        return `<div class="tl-item"><div class="who">${escapeHtml(t.agent || "tool")} · ${escapeHtml(t.tool)}</div><pre>${escapeHtml(body)}</pre></div>`;
+      }).join("");
+    }
+
+    function renderContext() {
+      const ctx = state.journal?.context || {};
+      const m = (ctx.meetings || []).length;
+      const iv = (ctx.interviews || []).length;
+      const el = document.getElementById("contextCallout");
+      if (!m && !iv && !(ctx.blocks || []).length) {
+        el.textContent = "尚未读取生活上下文。生成今日课后 Life Agent 会调工具。";
+        return;
+      }
+      el.textContent = `已读取生活上下文（${m} 会议 · ${iv} 面试）` +
+        ((ctx.notes || []).length ? ` · 备注：${ctx.notes.join("；")}` : "");
+    }
+
+    function renderSynth(summary, assignments) {
+      const el = document.getElementById("synthBanner");
+      if (!summary) {
+        el.style.display = "none";
+        el.innerHTML = "";
+        return;
+      }
+      const note = assignments?.note ? `<div class="muted" style="margin-top:0.4rem">分派：${escapeHtml(assignments.note)}</div>` : "";
+      el.style.display = "block";
+      el.innerHTML = `<strong>SYNTHESIZER · 今日板</strong>${escapeHtml(summary)}${note}`;
+    }
+
+    function renderYesterdayHint() {
+      const days = state.journal?.days || [];
+      const date = document.getElementById("dateInput").value;
+      const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
+      const idx = sorted.findIndex((d) => d.date === date);
+      const el = document.getElementById("yesterdayHint");
+      if (idx > 0 && sorted[idx - 1].review?.tomorrow) {
+        el.style.display = "block";
+        el.innerHTML = `<strong>昨日复盘 → 今日：</strong>${escapeHtml(sorted[idx - 1].review.tomorrow)}`;
+      } else if (sorted.length && sorted[0].date < date && sorted[0].review?.tomorrow) {
+        el.style.display = "block";
+        el.innerHTML = `<strong>最近复盘建议：</strong>${escapeHtml(sorted[0].review.tomorrow)}`;
+      } else {
+        el.style.display = "none";
+      }
+    }
+
+    function renderDayTasks(day) {
+      if (!day) return;
+      state.dayId = day.day_id;
+      const study = (day.tasks || []).filter((t) => t.type !== "life");
+      const life = (day.tasks || []).filter((t) => t.type === "life");
+      renderTaskLists(study, life, day.hours_left);
+      if (day.review) renderReviewBlocks(day.review);
+    }
+
+    function renderTaskLists(study, life, hoursLeft) {
+      const studyEl = document.getElementById("studyList");
+      const lifeEl = document.getElementById("lifeList");
+      if (!study.length) studyEl.innerHTML = `<div class="empty">还没有学习任务。</div>`;
+      else {
+        studyEl.innerHTML = study.map((t) => {
+          const cut = t.status === "cut";
+          const done = t.status === "done";
+          const tag = cut ? "cut" : done ? "done" : "study";
+          const tagText = cut ? "已砍" : done ? "完成" : "学习";
+          const disabled = cut ? "disabled" : "";
+          const checked = done ? "checked" : "";
+          return `<div class="task">
+            <input type="checkbox" data-id="${t.id}" ${disabled} ${checked} />
+            <div class="meta">
+              <div class="title">${escapeHtml(t.title)}<span class="tag ${tag}">${tagText}</span></div>
+              <div class="sub">${t.estimate_hours}h · 优先级 ${t.priority || "-"}${t.cut_reason ? " · " + escapeHtml(t.cut_reason) : ""}</div>
+            </div>
+          </div>`;
+        }).join("");
+      }
+      if (!life.length) lifeEl.innerHTML = `<div class="empty">无会议 / 面试占用。</div>`;
+      else {
+        lifeEl.innerHTML = life.map((t) => `<div class="task">
+          <div class="meta">
+            <div class="title">${escapeHtml(t.title)}<span class="tag life">固定安排</span></div>
+            <div class="sub">${t.estimate_hours}h · 时间紧时只砍学习</div>
+          </div>
+        </div>`).join("");
+      }
+
+      const studyH = study.filter((t) => t.status !== "cut").reduce((s, t) => s + Number(t.estimate_hours || 0), 0);
+      const lifeH = life.reduce((s, t) => s + Number(t.estimate_hours || 0), 0);
+      const total = studyH + lifeH;
+      const budget = Number(hoursLeft || 0);
+      const over = total > budget + 1e-6;
+      document.getElementById("budgetSummary").innerHTML = `
+        <span class="pill">学习 ${studyH.toFixed(1)}h</span>
+        <span class="pill">占用 ${lifeH.toFixed(1)}h</span>
+        <span class="pill ${over ? "over" : "ok"}">合计 ${total.toFixed(1)}h / 预算 ${budget.toFixed(1)}h</span>
+      `;
+    }
+
+    function renderGoals() {
+      const goals = state.journal?.goals || [];
+      const el = document.getElementById("goalsList");
+      if (!goals.length) {
+        el.innerHTML = `<div class="empty">暂无目标，请在下方添加，或先 seed。</div>`;
+        return;
+      }
+      el.innerHTML = goals.map((g) => {
+        const active = g.id === state.goalId ? " · 当前驱动" : "";
+        return `<div class="task"><div class="meta">
+        <div class="title">${escapeHtml(g.title)}<span class="tag study">${escapeHtml(g.status)}</span>${active}</div>
+        <div class="sub">#${g.id} · ${escapeHtml(g.description || "无描述")}</div>
+      </div></div>`;
+      }).join("");
+    }
+
+    function renderHistory() {
+      const days = (state.journal?.days || []).slice(0, 7);
+      const el = document.getElementById("historyList");
+      if (!days.length) { el.innerHTML = `<div class="empty">暂无历史。</div>`; return; }
+      el.innerHTML = days.map((d) => {
+        const study = (d.tasks || []).filter((t) => t.type !== "life" && t.status !== "cut");
+        const done = study.filter((t) => t.status === "done").length;
+        const pending = study.filter((t) => t.status === "pending").length;
+        const denom = done + pending;
+        const rate = denom ? Math.round((done / denom) * 100) : 0;
+        const titles = (d.tasks || []).map((t) => `${t.type === "life" ? "[固定]" : "[学习]"} ${t.title} (${t.status})`).join("<br>");
+        return `<div class="history-day">
+          <div><strong>${d.date}</strong> · 预算 ${d.hours_left}h · 完成率 ${rate}%</div>
+          <div class="rate"><span style="width:${rate}%"></span></div>
+          <div class="muted" style="margin-top:0.45rem">${titles || "无任务"}</div>
+          ${d.review?.tomorrow ? `<div class="muted" style="margin-top:0.35rem">明日建议：${escapeHtml(d.review.tomorrow)}</div>` : ""}
+        </div>`;
+      }).join("");
+    }
+
+    function renderTimelineFromJournal() {
+      const days = state.journal?.days || [];
+      if (!days.length) return;
+      renderTimeline(days[0].logs || []);
+    }
+
+    function renderTimeline(logs) {
+      const el = document.getElementById("timeline");
+      if (!logs?.length) {
+        el.className = "timeline empty";
+        el.textContent = "生成课表或复盘后在此展示 Supervisor 分派与工具往返。";
+        return;
+      }
+      el.className = "timeline";
+      el.innerHTML = logs.map((l) => {
+        let body = l.content;
+        try { body = JSON.stringify(JSON.parse(l.content), null, 2); } catch (_) {}
+        return `<div class="tl-item"><div class="who">${escapeHtml(l.node)} · ${escapeHtml(l.kind)}</div><pre>${escapeHtml(body)}</pre></div>`;
+      }).join("");
+    }
+
+    function renderReviewBlocks(review) {
+      const el = document.getElementById("reviewOut");
+      el.innerHTML = `
+        <div class="card" style="box-shadow:none;margin:0;padding:0;border:none">
+          <h2>学习复盘</h2>
+          <div class="review-block">${escapeHtml(review.content || review.review || "")}</div>
+          ${review.interview_review ? `<h2 style="margin-top:1rem">面试复盘</h2><div class="review-block">${escapeHtml(review.interview_review)}</div>` : ""}
+          <h2 style="margin-top:1rem">明日建议</h2>
+          <div class="review-block">${escapeHtml(review.tomorrow || "")}</div>
+        </div>`;
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+
+    document.getElementById("goalSelect").addEventListener("change", (e) => {
+      state.goalId = Number(e.target.value) || null;
+      document.getElementById("jobGoalSelect").value = String(state.goalId || "");
+      renderGoals();
+    });
+    document.getElementById("jobGoalSelect").addEventListener("change", (e) => {
+      state.goalId = Number(e.target.value) || null;
+      document.getElementById("goalSelect").value = String(state.goalId || "");
+      renderGoals();
+    });
+
+    document.getElementById("btnPlan").addEventListener("click", async () => {
+      const btn = document.getElementById("btnPlan");
+      const status = document.getElementById("planStatus");
+      const goalId = Number(document.getElementById("goalSelect").value) || state.goalId;
+      if (!goalId) {
+        status.textContent = "请先添加并选择一个目标";
+        return;
+      }
+      state.goalId = goalId;
+      btn.disabled = true;
+      startPlanProgress(status);
+      try {
+        const res = await fetch("/api/plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            goal_id: goalId,
+            date: document.getElementById("dateInput").value,
+            hours_left: Number(document.getElementById("hoursInput").value),
+          }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        state.lastPlan = data;
+        state.dayId = data.day_id;
+        const study = [...(data.trimmed_plan || []), ...(data.cut || [])];
+        renderTaskLists(study, data.life || [], data.hours_left);
+        renderSynth(data.summary, data.assignments);
+        status.textContent = `完成 · day_id=${data.day_id} · 工具 ${data.tool_calls?.length || 0} 次 · ${data.assignments?.note || ""}`;
+        await loadJournal();
+        if (data.summary) renderSynth(data.summary, data.assignments);
+      } catch (e) {
+        status.textContent = "失败：" + e.message;
+      } finally {
+        stopPlanProgress();
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById("btnAddGoal").addEventListener("click", async () => {
+      const title = document.getElementById("goalTitle").value.trim();
+      const status = document.getElementById("goalStatus");
+      if (!title) { status.textContent = "请填写标题"; return; }
+      status.textContent = "提交中…";
+      try {
+        const res = await fetch("/api/goals", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            description: document.getElementById("goalDesc").value.trim(),
+          }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        state.goalId = data.id;
+        document.getElementById("goalTitle").value = "";
+        document.getElementById("goalDesc").value = "";
+        status.textContent = `已添加 #${data.id}，已选为驱动目标`;
+        await loadJournal();
+      } catch (e) {
+        status.textContent = "失败：" + e.message;
+      }
+    });
+
+    document.getElementById("btnToggleInterview").addEventListener("click", () => {
+      const el = document.getElementById("panelInterview");
+      el.open = !el.open;
+      if (el.open) document.getElementById("panelContext").open = false;
+    });
+    document.getElementById("btnToggleContext").addEventListener("click", () => {
+      const el = document.getElementById("panelContext");
+      el.open = !el.open;
+      if (el.open) document.getElementById("panelInterview").open = false;
+    });
+
+    function syncContextFormFields() {
+      const t = document.getElementById("ctxType").value;
+      document.getElementById("ctxTimeWrap").style.display = t === "note" ? "none" : "";
+      document.getElementById("ctxTitleWrap").style.display = t === "meeting" ? "" : "none";
+      document.getElementById("ctxHoursWrap").style.display = t === "meeting" ? "" : "none";
+      document.getElementById("ctxNoteWrap").style.display = t === "block" ? "" : "none";
+      document.getElementById("ctxTextWrap").style.display = t === "note" ? "" : "none";
+    }
+    document.getElementById("ctxType").addEventListener("change", syncContextFormFields);
+    syncContextFormFields();
+
+    document.getElementById("btnAddInterview").addEventListener("click", async () => {
+      const status = document.getElementById("interviewStatus");
+      const company = document.getElementById("ivCompany").value.trim();
+      if (!company) { status.textContent = "请填写公司"; return; }
+      status.textContent = "提交中…";
+      try {
+        const res = await fetch("/api/interviews", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            date: document.getElementById("ivDate").value,
+            time: document.getElementById("ivTime").value,
+            company,
+            role: document.getElementById("ivRole").value.trim(),
+            duration_hours: Number(document.getElementById("ivHours").value) || 1,
+            notes: document.getElementById("ivNotes").value.trim(),
+            post_notes: document.getElementById("ivPostNotes").value.trim(),
+            stage: document.getElementById("ivStage").value,
+            insights: document.getElementById("ivInsights").value.trim(),
+          }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        status.textContent = "已写入 interviews.json · 下次生成今日才进课表";
+        document.getElementById("ivCompany").value = "";
+        document.getElementById("ivRole").value = "";
+        document.getElementById("ivNotes").value = "";
+        document.getElementById("ivPostNotes").value = "";
+        document.getElementById("ivInsights").value = "";
+        await loadJournal();
+      } catch (e) {
+        status.textContent = "失败：" + e.message;
+      }
+    });
+
+    document.getElementById("btnAddContext").addEventListener("click", async () => {
+      const status = document.getElementById("contextStatus");
+      const type = document.getElementById("ctxType").value;
+      let body = { type };
+      if (type === "meeting") {
+        const title = document.getElementById("ctxTitle").value.trim();
+        if (!title) { status.textContent = "请填写会议标题"; return; }
+        body = {
+          type,
+          time: document.getElementById("ctxTime").value,
+          title,
+          duration_hours: Number(document.getElementById("ctxHours").value) || 1,
+        };
+      } else if (type === "block") {
+        const note = document.getElementById("ctxNote").value.trim();
+        if (!note) { status.textContent = "请填写占用说明"; return; }
+        body = { type, time: document.getElementById("ctxTime").value, note };
+      } else {
+        const text = document.getElementById("ctxText").value.trim();
+        if (!text) { status.textContent = "请填写备注"; return; }
+        body = { type, text };
+      }
+      status.textContent = "提交中…";
+      try {
+        const res = await fetch("/api/context", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        status.textContent = "已写入 context.json · 下次生成今日才进课表";
+        document.getElementById("ctxTitle").value = "";
+        document.getElementById("ctxNote").value = "";
+        document.getElementById("ctxText").value = "";
+        await loadJournal();
+      } catch (e) {
+        status.textContent = "失败：" + e.message;
+      }
+    });
+
+    document.getElementById("btnSaveDone").addEventListener("click", async () => {
+      const ids = [...document.querySelectorAll("#studyList input[type=checkbox]:checked")]
+        .map((el) => Number(el.dataset.id))
+        .filter(Boolean);
+      const status = document.getElementById("tasksStatus");
+      const res = await fetch("/api/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task_ids: ids, done: true }),
+      });
+      const data = await res.json();
+      status.textContent = `已更新 ${data.updated?.length || 0} 条`;
+      await loadJournal();
+    });
+
+    document.getElementById("btnReview").addEventListener("click", async () => {
+      if (!state.dayId) {
+        document.getElementById("reviewStatus").textContent = "请先生成今日课";
+        return;
+      }
+      const btn = document.getElementById("btnReview");
+      const status = document.getElementById("reviewStatus");
+      btn.disabled = true;
+      status.textContent = "Evidence Agent 取证 → Reviewer 复盘…";
+      try {
+        const res = await fetch("/api/review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            day_id: state.dayId,
+            interview_notes: document.getElementById("interviewNotes").value,
+          }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        renderReviewBlocks(data);
+        status.textContent = "复盘完成";
+        await loadJournal();
+      } catch (e) {
+        status.textContent = "失败：" + e.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById("btnAnalyze").addEventListener("click", async () => {
+      const btn = document.getElementById("btnAnalyze");
+      const status = document.getElementById("analyzeStatus");
+      const goalId = Number(document.getElementById("jobGoalSelect").value) || state.goalId;
+      if (!goalId) {
+        status.textContent = "请先添加并选择一个目标";
+        return;
+      }
+      state.goalId = goalId;
+      btn.disabled = true;
+      startPlanProgress(status, ANALYZE_STEPS);
+      try {
+        const res = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ goal_id: goalId }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        state.lastAnalyze = data;
+        if (state.journal) state.journal.interview_stats = data.stats;
+        renderJobs();
+        renderAnalyzeOut(data);
+        status.textContent = `完成 · 工具 ${data.tool_calls?.length || 0} 次 · ${data.assignments?.note || ""}`;
+      } catch (e) {
+        status.textContent = "失败：" + e.message;
+      } finally {
+        stopPlanProgress();
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById("jobsList").addEventListener("click", async (e) => {
+      const btn = e.target.closest(".iv-stage-save");
+      if (!btn) return;
+      const date = btn.dataset.date;
+      const time = btn.dataset.time;
+      const company = btn.dataset.company;
+      const row = btn.closest(".task");
+      const sel = row?.querySelector(".iv-stage-select");
+      const stage = sel?.value;
+      if (!stage) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/interviews", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date, time, company, stage }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        await loadJournal();
+      } catch (err) {
+        alert("更新阶段失败：" + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    loadJournal().catch((e) => {
+      document.getElementById("planStatus").textContent = "加载 journal 失败：" + e.message;
+    });
+  </script>
+</body>
+</html>
