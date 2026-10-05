@@ -1,5 +1,9 @@
 .env
 data/*.db*
+data/chroma/
+data/qa_history.json
+data/note_docs.json
+data/uploads/
 __pycache__/
 .venv/
 *.pyc

@@ -7,3 +7,6 @@ uvicorn[standard]
 python-dotenv
 mcp
 langchain-mcp-adapters
+sentence-transformers
+pypdf
+python-docx

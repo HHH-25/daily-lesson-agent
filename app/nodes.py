@@ -16,6 +16,7 @@ from app.tools import (
     BUDGET_TOOLS,
     EVIDENCE_TOOLS,
     LIFE_TOOLS,
+    QA_TOOLS,
     build_life_tasks,
     invoke_mcp_tool,
     invoke_tool,
@@ -74,11 +75,15 @@ def _run_tool_loop(
     *,
     max_rounds: int = 3,
     fallback: Optional[Callable[[], list[dict]]] = None,
+    prefer_mcp: bool = True,
 ) -> tuple[str, list[dict], list[dict]]:
     """LLM 工具环；失败或未调工具时走确定性兜底。返回 (final_text, tool_calls, logs)。"""
     logs: list[dict] = []
     tool_calls_out: list[dict] = []
-    bind_tools, mcp_map = select_agent_tools(tools)
+    if prefer_mcp:
+        bind_tools, mcp_map = select_agent_tools(tools)
+    else:
+        bind_tools, mcp_map = tools, {}
     tool_map = {t.name: t for t in bind_tools}
     llm = get_llm().bind_tools(bind_tools)
     messages: list = [SystemMessage(content=system), HumanMessage(content=user)]
@@ -1085,4 +1090,101 @@ def reviewer(state: DayState) -> dict:
         "interview_review": interview_review,
         "logs": logs,
         "tool_calls": [],
+    }
+
+
+def interview_qa(state: DayState) -> dict:
+    """面经问答：按 mode 调检索工具，再用 LLM 根据 chunk 作答。不走 MCP。"""
+    from app.rag import classify_ask_mode, retrieve_for_query
+
+    query = (state.get("ask_query") or "").strip()
+    mode = (state.get("ask_mode") or classify_ask_mode(query) or "semantic").strip()
+    if mode not in ("time", "semantic"):
+        mode = "semantic"
+
+    def fallback() -> list[dict]:
+        if mode == "time":
+            return [invoke_tool("list_recent_interviews", {"n": 7}, agent="interview_qa")]
+        return [
+            invoke_tool(
+                "retrieve_interview_chunks",
+                {"query": query, "k": 5},
+                agent="interview_qa",
+            )
+        ]
+
+    system = (
+        "你是 Interview QA。必须先调用工具拿到面经 chunk，再只根据工具结果回答。"
+        "时间类问题调用 list_recent_interviews；其余调用 retrieve_interview_chunks。"
+        "只输出 JSON：{\"answer\":\"...\"}。不要编造未出现在 chunk 里的公司或题目。"
+        "若 chunk 为空，如实说明库里没有相关记录。"
+    )
+    user = (
+        f"问题：{query}\n检索模式：{mode}\n"
+        "先调对应工具，再写 answer。"
+    )
+
+    final_text, tool_calls, logs = _run_tool_loop(
+        "interview_qa",
+        system,
+        user,
+        QA_TOOLS,
+        max_rounds=3,
+        fallback=fallback,
+        prefer_mcp=False,
+    )
+
+    chunks: list = []
+    via = "keyword"
+    for tc in tool_calls:
+        if tc["tool"] in ("retrieve_interview_chunks", "list_recent_interviews"):
+            try:
+                payload = json.loads(tc["output"]) if isinstance(tc["output"], str) else tc["output"]
+            except json.JSONDecodeError:
+                payload = {}
+            if isinstance(payload, dict):
+                chunks = list(payload.get("chunks") or [])
+                via = str(payload.get("via") or via)
+                mode = str(payload.get("mode") or mode)
+
+    if not chunks:
+        packed = retrieve_for_query(query)
+        chunks = list(packed.get("chunks") or [])
+        via = str(packed.get("via") or via)
+        mode = str(packed.get("mode") or mode)
+        call = invoke_tool(
+            "list_recent_interviews" if mode == "time" else "retrieve_interview_chunks",
+            {"n": 7} if mode == "time" else {"query": query, "k": 5},
+            agent="interview_qa",
+        )
+        tool_calls.append(_tc_public(call))
+        logs.append(_log("interview_qa", "tool_call", {"tool": call["tool"], "fallback": True}))
+        logs.append(_log("interview_qa", "tool_result", {"tool": call["tool"], "output": call["data"]}))
+
+    answer = ""
+    try:
+        data = _extract_json(final_text) if final_text else {}
+        if isinstance(data, dict):
+            answer = str(data.get("answer") or "")
+    except (json.JSONDecodeError, TypeError, ValueError):
+        answer = ""
+    if not answer and final_text and not str(final_text).strip().startswith("{"):
+        answer = str(final_text).strip()
+    if not answer:
+        if chunks:
+            titles = [
+                f"{c.get('metadata', {}).get('company') or ''} {c.get('metadata', {}).get('date') or ''}".strip()
+                for c in chunks[:5]
+            ]
+            answer = "根据面经库召回：" + "；".join(t for t in titles if t)
+        else:
+            answer = "面经库里没有匹配记录。可先在求职页写下 post_notes / insights。"
+
+    logs.append(_log("interview_qa", "output", {"answer": answer, "mode": mode, "via": via}))
+    return {
+        "ask_answer": answer,
+        "ask_mode": mode,
+        "ask_chunks": chunks,
+        "logs": logs,
+        "tool_calls": tool_calls,
     }

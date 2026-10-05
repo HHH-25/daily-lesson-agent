@@ -12,6 +12,7 @@ from app.nodes import (
     budget_agent,
     evidence_agent,
     interview_analyst,
+    interview_qa,
     life_agent,
     reviewer,
     study_agent,
@@ -28,6 +29,7 @@ _conn: sqlite3.Connection | None = None
 _plan_graph = None
 _review_graph = None
 _analyze_graph = None
+_ask_graph = None
 
 
 def get_checkpointer() -> SqliteSaver:
@@ -93,6 +95,15 @@ def build_analyze_graph():
     return g.compile(checkpointer=get_checkpointer())
 
 
+def build_ask_graph():
+    """面经问答：interview_qa 单节点（本地检索工具，不经 MCP）。"""
+    g = StateGraph(DayState)
+    g.add_node("interview_qa", interview_qa)
+    g.add_edge(START, "interview_qa")
+    g.add_edge("interview_qa", END)
+    return g.compile(checkpointer=get_checkpointer())
+
+
 def get_plan_graph():
     global _plan_graph
     if _plan_graph is None:
@@ -112,6 +123,13 @@ def get_analyze_graph():
     if _analyze_graph is None:
         _analyze_graph = build_analyze_graph()
     return _analyze_graph
+
+
+def get_ask_graph():
+    global _ask_graph
+    if _ask_graph is None:
+        _ask_graph = build_ask_graph()
+    return _ask_graph
 
 
 def _empty_state(**overrides: object) -> DayState:
@@ -135,6 +153,10 @@ def _empty_state(**overrides: object) -> DayState:
         "analysis": "",
         "suggestions": "",
         "summary": "",
+        "ask_query": "",
+        "ask_mode": "",
+        "ask_chunks": [],
+        "ask_answer": "",
         "logs": [],
         "tool_summary": "",
         "tool_calls": [],
@@ -208,4 +230,22 @@ def run_analyze(goal: str, date: str | None = None) -> DayState:
         mode="analyze",
     )
     config = {"configurable": {"thread_id": f"analyze-{run_date}"}}
+    return graph.invoke(initial, config=config)  # type: ignore[return-value]
+
+
+def run_ask(query: str) -> DayState:
+    from datetime import date as date_cls
+    from app.rag import classify_ask_mode
+
+    graph = get_ask_graph()
+    q = (query or "").strip()
+    run_date = date_cls.today().isoformat()
+    initial = _empty_state(
+        date=run_date,
+        hours_left=0.0,
+        mode="ask",
+        ask_query=q,
+        ask_mode=classify_ask_mode(q),
+    )
+    config = {"configurable": {"thread_id": f"ask-{run_date}"}}
     return graph.invoke(initial, config=config)  # type: ignore[return-value]

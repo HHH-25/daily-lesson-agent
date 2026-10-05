@@ -266,6 +266,33 @@
     @media (max-width: 720px) {
       .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
+    .iv-expand {
+      margin-top: 0.5rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .iv-expand summary { cursor: pointer; color: var(--accent); font-weight: 550; }
+    .iv-expand pre {
+      white-space: pre-wrap;
+      background: #fafafa;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0.55rem 0.7rem;
+      margin: 0.35rem 0 0;
+      font: inherit;
+      font-size: 0.82rem;
+      color: var(--ink);
+    }
+    .chat-log { display: flex; flex-direction: column; gap: 0.55rem; margin-top: 0.75rem; }
+    .chat-bubble {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0.6rem 0.75rem;
+      font-size: 0.88rem;
+    }
+    .chat-bubble.q { background: #f8fafc; }
+    .chat-bubble.a { background: var(--accent-soft); }
+    .chat-bubble .who { font-size: 0.72rem; font-weight: 650; color: var(--muted); margin-bottom: 0.2rem; }
     .muted { color: var(--muted); font-size: 0.88rem; }
     .empty { color: var(--muted); padding: 0.5rem 0; }
     .history-day { margin-bottom: 1rem; }
@@ -552,8 +579,65 @@
         <div id="analyzeOut" style="margin-top:0.75rem"></div>
       </div>
       <div class="card">
+        <h2>面试后记一笔</h2>
+        <p class="entry-hint">复用 PATCH /api/interviews，写入 post_notes 与 insights；保存后后台重建面经索引。</p>
+        <div class="form-grid">
+          <div class="full">
+            <label>选择面试</label>
+            <select id="noteIvSelect"></select>
+          </div>
+          <div class="full">
+            <label>面试后流水账 post_notes</label>
+            <textarea id="notePost" placeholder="问了什么、哪里卡住…" style="min-height:70px"></textarea>
+          </div>
+          <div class="full">
+            <label>面经 insights</label>
+            <textarea id="noteInsights" placeholder="这家偏好问什么…" style="min-height:70px"></textarea>
+          </div>
+        </div>
+        <div style="margin-top:0.75rem">
+          <button class="btn" type="button" id="btnSaveNotes">保存后记</button>
+          <span class="status" id="noteStatus"></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>上传整份面经（PDF / Word）</h2>
+        <p class="entry-hint">抽文本入库，问答会检索这些文档。可选关联一场面试（只作标签，不必手抄全文）。扫描件 PDF 抽不出字暂不支持。</p>
+        <div class="form-grid">
+          <div class="full">
+            <label>文件</label>
+            <input id="noteFile" type="file" accept=".pdf,.docx,.txt,.md" />
+          </div>
+          <div class="full">
+            <label>关联面试（可选）</label>
+            <select id="uploadIvSelect"></select>
+          </div>
+        </div>
+        <div style="margin-top:0.75rem">
+          <button class="btn" type="button" id="btnUploadNote">上传入库</button>
+          <span class="status" id="uploadStatus"></span>
+        </div>
+        <div id="noteDocsList" class="muted" style="margin-top:0.75rem"></div>
+      </div>
+      <div class="card">
+        <h2>面经问答</h2>
+        <p class="entry-hint">例如「哪些公司问了状态合并」走语义检索；「总结最近面试」按日期取近 N 条。embedding 失败则关键词兜底。</p>
+        <div class="row">
+          <div class="full" style="flex:1">
+            <label>问题</label>
+            <input id="askQuery" placeholder="哪些公司问了 LangGraph 状态合并？" />
+          </div>
+          <div style="flex:0 0 auto">
+            <label>&nbsp;</label>
+            <button class="btn" type="button" id="btnAsk">提问</button>
+          </div>
+        </div>
+        <p class="status" id="askStatus"></p>
+        <div id="askLog" class="chat-log"></div>
+      </div>
+      <div class="card">
         <h2>面试列表</h2>
-        <p class="entry-hint">可改阶段（PATCH）；同日期+时间+公司再次保存会 upsert。</p>
+        <p class="entry-hint">可展开看 notes / post_notes / insights；可改阶段（PATCH）。</p>
         <div id="jobsList" class="empty">加载中…</div>
       </div>
       <div class="card">
@@ -576,7 +660,7 @@
         <div class="agent-card"><strong>study_agent</strong><span class="muted">按分派拆学习任务</span></div>
         <div class="agent-card"><strong>budget_agent</strong><span class="muted">apply_time_budget 硬裁剪</span></div>
         <div class="agent-card"><strong>synthesizer</strong><span class="muted">今日板说明收口</span></div>
-        <div class="agent-card"><strong>interview_analyst</strong><span class="muted">求职：analyze_interviews 统计 + 建议</span></div>
+        <div class="agent-card"><strong>interview_qa</strong><span class="muted">面经问答：语义/时间检索 + LLM</span></div>
         <div class="agent-card"><strong>evidence → reviewer</strong><span class="muted">复盘：证据工具环 + LLM</span></div>
       </div>
       <div class="card">
@@ -601,7 +685,7 @@
     const titles = {
       today: ["今日", "Supervisor 分派 → 领域 Agent 调工具 → 预算裁剪 → 今日板。"],
       goals: ["目标", "添加目标，并在今日页选择驱动排课的目标。"],
-      jobs: ["求职", "面试列表 + 投递统计；Supervisor → Interview Analyst → Synthesizer。"],
+      jobs: ["求职", "面试列表 + 投递统计；面经问答；Supervisor → Interview Analyst。"],
       history: ["历史", "近 7 天完成率与课表回顾。"],
       agents: ["Agent 轨迹", "Supervisor 分派 → 各 Agent 工具往返 → Synthesizer。"],
     };
@@ -683,6 +767,7 @@
       renderTimelineFromJournal();
       renderYesterdayHint();
       if (state.journal.days?.length) renderDayTasks(state.journal.days[0]);
+      fillNoteIvSelect();
     }
 
     function stageTagClass(stage) {
@@ -710,6 +795,7 @@
       const el = document.getElementById("jobsList");
       if (!list.length) {
         el.innerHTML = `<div class="empty">暂无面试记录。可在今日页「＋面试」添加。</div>`;
+        fillNoteIvSelect();
         return;
       }
       const sorted = [...list].sort((a, b) =>
@@ -744,9 +830,104 @@
                   data-company="${escapeHtml(iv.company)}">保存阶段</button>
               </div>
             </div>
+            <details class="iv-expand">
+              <summary>展开面经</summary>
+              <div class="sub" style="margin-top:0.35rem">准备 notes</div>
+              <pre>${escapeHtml(iv.notes || "（空）")}</pre>
+              <div class="sub">面试后 post_notes</div>
+              <pre>${escapeHtml(iv.post_notes || "（空）")}</pre>
+              <div class="sub">面经 insights</div>
+              <pre>${escapeHtml(iv.insights || "（空）")}</pre>
+            </details>
           </div>
         </div>`;
       }).join("");
+      fillNoteIvSelect();
+    }
+
+    function ivKey(iv) {
+      return `${iv.date}||${iv.time}||${iv.company}`;
+    }
+
+    function fillIvSelect(sel, { includeBlank, prev }) {
+      if (!sel) return;
+      const list = state.journal?.interviews || [];
+      const keep = prev !== undefined ? prev : sel.value;
+      if (!list.length) {
+        sel.innerHTML = includeBlank
+          ? `<option value="">不关联面试（通用面经库）</option>`
+          : `<option value="">暂无面试</option>`;
+        return;
+      }
+      const sorted = [...list].sort((a, b) =>
+        String(b.date).localeCompare(String(a.date)) || String(b.time).localeCompare(String(a.time))
+      );
+      const opts = sorted.map((iv) => {
+        const label = `${iv.date} ${iv.time} · ${iv.company}（${iv.stage || "一面"}）`;
+        return `<option value="${escapeHtml(ivKey(iv))}">${escapeHtml(label)}</option>`;
+      }).join("");
+      sel.innerHTML = (includeBlank ? `<option value="">不关联面试（通用面经库）</option>` : "") + opts;
+      if (keep && [...sel.options].some((o) => o.value === keep)) sel.value = keep;
+    }
+
+    function fillNoteIvSelect() {
+      fillIvSelect(document.getElementById("noteIvSelect"), { includeBlank: false });
+      fillIvSelect(document.getElementById("uploadIvSelect"), { includeBlank: true });
+      syncNoteFields();
+      renderNoteDocs();
+    }
+
+    function renderNoteDocs() {
+      const el = document.getElementById("noteDocsList");
+      if (!el) return;
+      const docs = state.journal?.note_docs || [];
+      if (!docs.length) {
+        el.textContent = "还没有上传文档。";
+        return;
+      }
+      el.innerHTML = docs.map((d) =>
+        `${escapeHtml(d.filename || "文档")} · ${d.chars || 0} 字`
+        + (d.company ? ` · ${escapeHtml(d.company)}` : "")
+      ).join("<br>");
+    }
+
+    function parseIvKey(key) {
+      const parts = String(key || "").split("||");
+      return { date: parts[0] || "", time: parts[1] || "", company: parts[2] || "" };
+    }
+
+    function syncNoteFields() {
+      const sel = document.getElementById("noteIvSelect");
+      const key = sel?.value || "";
+      const { date, time, company } = parseIvKey(key);
+      const iv = (state.journal?.interviews || []).find(
+        (x) => x.date === date && x.time === time && x.company === company
+      );
+      document.getElementById("notePost").value = iv?.post_notes || "";
+      document.getElementById("noteInsights").value = iv?.insights || "";
+    }
+
+    function renderAskLog(items) {
+      const el = document.getElementById("askLog");
+      if (!el) return;
+      if (!items?.length) {
+        el.innerHTML = `<div class="empty">还没有问答。先在上面提问，或先写下后记再问。</div>`;
+        return;
+      }
+      el.innerHTML = items.map((it) => `
+        <div class="chat-bubble q"><div class="who">你${it.mode ? " · " + escapeHtml(it.mode) : ""}</div>${escapeHtml(it.query || "")}</div>
+        <div class="chat-bubble a"><div class="who">Interview QA</div>${escapeHtml(it.answer || "")}</div>
+      `).join("");
+    }
+
+    async function loadAskHistory() {
+      try {
+        const res = await fetch("/api/ask/history");
+        const data = await res.json();
+        renderAskLog(data.items || []);
+      } catch (_) {
+        renderAskLog([]);
+      }
     }
 
     function renderAnalyzeOut(data) {
@@ -1221,9 +1402,101 @@
       }
     });
 
+    document.getElementById("btnUploadNote").addEventListener("click", async () => {
+      const status = document.getElementById("uploadStatus");
+      const input = document.getElementById("noteFile");
+      const file = input?.files?.[0];
+      if (!file) {
+        status.textContent = "请先选择 PDF / Word / txt";
+        return;
+      }
+      const { date, time, company } = parseIvKey(document.getElementById("uploadIvSelect").value);
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("date", date);
+      fd.append("time", time);
+      fd.append("company", company);
+      const btn = document.getElementById("btnUploadNote");
+      btn.disabled = true;
+      status.textContent = "抽取文本并入库…";
+      try {
+        const res = await fetch("/api/notes/upload", { method: "POST", body: fd });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        status.textContent = `已入库 ${data.filename}（${data.chars} 字）`;
+        input.value = "";
+        await loadJournal();
+      } catch (e) {
+        status.textContent = "失败：" + e.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById("btnSaveNotes").addEventListener("click", async () => {
+      const status = document.getElementById("noteStatus");
+      const { date, time, company } = parseIvKey(document.getElementById("noteIvSelect").value);
+      if (!date || !company) {
+        status.textContent = "请先选择一条面试";
+        return;
+      }
+      const btn = document.getElementById("btnSaveNotes");
+      btn.disabled = true;
+      status.textContent = "保存中…";
+      try {
+        const res = await fetch("/api/interviews", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            date,
+            time,
+            company,
+            post_notes: document.getElementById("notePost").value,
+            insights: document.getElementById("noteInsights").value,
+          }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        status.textContent = "已保存；索引后台更新";
+        await loadJournal();
+      } catch (e) {
+        status.textContent = "失败：" + e.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById("btnAsk").addEventListener("click", async () => {
+      const status = document.getElementById("askStatus");
+      const q = (document.getElementById("askQuery").value || "").trim();
+      if (!q) {
+        status.textContent = "请输入问题";
+        return;
+      }
+      const btn = document.getElementById("btnAsk");
+      btn.disabled = true;
+      status.textContent = "检索面经中…";
+      try {
+        const res = await fetch("/api/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: q }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        status.textContent = `完成 · ${data.mode || ""} · 召回 ${data.chunks?.length || 0} 条`;
+        document.getElementById("askQuery").value = "";
+        await loadAskHistory();
+      } catch (e) {
+        status.textContent = "失败：" + e.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     loadJournal().catch((e) => {
       document.getElementById("planStatus").textContent = "加载 journal 失败：" + e.message;
     });
+    loadAskHistory();
   </script>
 </body>
 </html>

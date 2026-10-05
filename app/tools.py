@@ -62,6 +62,28 @@ ANALYZE_INTERVIEWS_SPEC: dict[str, Any] = {
     "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
 }
 
+RETRIEVE_CHUNKS_SPEC: dict[str, Any] = {
+    "name": "retrieve_interview_chunks",
+    "description": "按问题语义检索面经 chunk（notes/post_notes/insights）。失败则关键词匹配。",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string"},
+            "k": {"type": "integer"},
+        },
+        "required": ["query"],
+    },
+}
+
+LIST_RECENT_SPEC: dict[str, Any] = {
+    "name": "list_recent_interviews",
+    "description": "按日期取最近 N 条有正文的面试记录，不走向量召回。",
+    "input_schema": {
+        "type": "object",
+        "properties": {"n": {"type": "integer"}},
+    },
+}
+
 
 def normalize_stage(stage: Optional[str]) -> str:
     s = (stage or "").strip()
@@ -281,6 +303,26 @@ def _tool_analyze_interviews() -> str:
     return json.dumps(analyze_interviews(), ensure_ascii=False)
 
 
+def retrieve_interview_chunks(query: str, k: int = 5) -> dict[str, Any]:
+    from app.rag import retrieve_semantic
+
+    return retrieve_semantic(query, k)
+
+
+def list_recent_interviews(n: int = 7) -> dict[str, Any]:
+    from app.rag import list_recent_chunks
+
+    return list_recent_chunks(n)
+
+
+def _tool_retrieve_chunks(query: str, k: int = 5) -> str:
+    return json.dumps(retrieve_interview_chunks(query, k), ensure_ascii=False)
+
+
+def _tool_list_recent(n: int = 7) -> str:
+    return json.dumps(list_recent_interviews(n), ensure_ascii=False)
+
+
 READ_LIFE_TOOL = StructuredTool.from_function(
     func=_tool_read_life_context,
     name="read_life_context",
@@ -307,10 +349,35 @@ ANALYZE_INTERVIEWS_TOOL = StructuredTool.from_function(
     description=ANALYZE_INTERVIEWS_SPEC["description"],
 )
 
+
+class _RetrieveChunksArgs(BaseModel):
+    query: str = Field(description="用户自然语言问题")
+    k: int = Field(default=5, description="召回条数")
+
+
+class _ListRecentArgs(BaseModel):
+    n: int = Field(default=7, description="最近 N 条")
+
+
+RETRIEVE_CHUNKS_TOOL = StructuredTool.from_function(
+    func=_tool_retrieve_chunks,
+    name="retrieve_interview_chunks",
+    description=RETRIEVE_CHUNKS_SPEC["description"],
+    args_schema=_RetrieveChunksArgs,
+)
+
+LIST_RECENT_TOOL = StructuredTool.from_function(
+    func=_tool_list_recent,
+    name="list_recent_interviews",
+    description=LIST_RECENT_SPEC["description"],
+    args_schema=_ListRecentArgs,
+)
+
 LIFE_TOOLS = [READ_LIFE_TOOL, LIST_INTERVIEWS_TOOL]
 BUDGET_TOOLS = [APPLY_BUDGET_TOOL]
 EVIDENCE_TOOLS = [LIST_INTERVIEWS_TOOL]
 ANALYZE_TOOLS = [ANALYZE_INTERVIEWS_TOOL]
+QA_TOOLS = [RETRIEVE_CHUNKS_TOOL, LIST_RECENT_TOOL]
 
 TOOL_REGISTRY: dict[str, Any] = {
     "read_life_context": lambda args: read_life_context(),
@@ -322,6 +389,13 @@ TOOL_REGISTRY: dict[str, Any] = {
     ),
     "analyze_interviews": lambda args: analyze_interviews(
         as_of=str(args["as_of"]) if args and args.get("as_of") else None
+    ),
+    "retrieve_interview_chunks": lambda args: retrieve_interview_chunks(
+        str(args.get("query") or ""),
+        int(args.get("k") or 5),
+    ),
+    "list_recent_interviews": lambda args: list_recent_interviews(
+        int(args.get("n") or 7)
     ),
 }
 

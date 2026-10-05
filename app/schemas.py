@@ -103,6 +103,17 @@ class AnalyzeResponse(BaseModel):
     tool_calls: list[ToolCallItem] = Field(default_factory=list)
 
 
+class AskRequest(BaseModel):
+    query: str
+
+
+class AskResponse(BaseModel):
+    answer: str = ""
+    mode: str = "semantic"
+    chunks: list[dict] = Field(default_factory=list)
+    tool_calls: list[ToolCallItem] = Field(default_factory=list)
+
+
 class ContextCreateRequest(BaseModel):
     type: Literal["meeting", "block", "note"]
     time: Optional[str] = None

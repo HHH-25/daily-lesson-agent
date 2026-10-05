@@ -3,17 +3,20 @@ from __future__ import annotations
 
 from datetime import date as date_cls
 from pathlib import Path
+from uuid import uuid4
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import db
-from app.graph import run_analyze, run_plan, run_review
+from app.graph import run_analyze, run_ask, run_plan, run_review
 from app.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
+    AskRequest,
+    AskResponse,
     ContextCreateRequest,
     GoalCreateRequest,
     GoalCreateResponse,
@@ -239,7 +242,9 @@ def api_create_interview(body: InterviewCreateRequest) -> dict:
         "stage": stage or DEFAULT_STAGE,
         "insights": body.insights or "",
     }
-    return append_interview(item)
+    saved = append_interview(item)
+    _safe_rebuild_rag()
+    return saved
 
 
 @app.patch("/api/interviews")
@@ -262,7 +267,9 @@ def api_patch_interview(body: InterviewPatchRequest) -> dict:
     if not patch:
         raise HTTPException(400, "无更新字段")
     try:
-        return update_interview(body.date, body.time, body.company, patch)
+        saved = update_interview(body.date, body.time, body.company, patch)
+        _safe_rebuild_rag()
+        return saved
     except KeyError as exc:
         raise HTTPException(404, str(exc)) from exc
 
@@ -280,6 +287,114 @@ def api_create_context(body: ContextCreateRequest) -> dict:
     else:
         payload = str(body.text).strip()
     return append_context_item(body.type, payload)
+
+
+def _safe_rebuild_rag() -> None:
+    try:
+        from app.rag import rebuild_index_async
+
+        rebuild_index_async()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+@app.post("/api/ask", response_model=AskResponse)
+def api_ask(body: AskRequest) -> AskResponse:
+    query = (body.query or "").strip()
+    if not query:
+        raise HTTPException(400, "query 不能为空")
+    try:
+        result = run_ask(query)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(500, f"ask failed: {exc}") from exc
+
+    tool_calls: list[ToolCallItem] = []
+    for tc in result.get("tool_calls") or []:
+        tool_calls.append(
+            ToolCallItem(
+                tool=tc["tool"],
+                input=tc.get("input"),
+                output=tc.get("output", ""),
+                agent=tc.get("agent") or "",
+                via=tc.get("via") or "local",
+            )
+        )
+    answer = result.get("ask_answer") or ""
+    mode = result.get("ask_mode") or "semantic"
+    chunks = result.get("ask_chunks") or []
+    try:
+        from app.rag import append_qa_history
+
+        append_qa_history(
+            {
+                "query": query,
+                "answer": answer,
+                "mode": mode,
+            }
+        )
+    except Exception:  # noqa: BLE001
+        pass
+    return AskResponse(answer=answer, mode=mode, chunks=chunks, tool_calls=tool_calls)
+
+
+@app.get("/api/ask/history")
+def api_ask_history() -> dict:
+    try:
+        from app.rag import list_qa_history
+
+        return {"items": list_qa_history(20)}
+    except Exception:  # noqa: BLE001
+        return {"items": []}
+
+
+@app.post("/api/notes/upload")
+async def api_upload_note(
+    file: UploadFile = File(...),
+    date: str = Form(""),
+    time: str = Form(""),
+    company: str = Form(""),
+) -> dict:
+    name = Path(file.filename or "note.bin").name
+    suffix = Path(name).suffix.lower()
+    if suffix not in {".pdf", ".docx", ".txt", ".md"}:
+        raise HTTPException(400, "请上传 PDF / Word(.docx) / txt")
+    raw = await file.read()
+    if len(raw) > 8 * 1024 * 1024:
+        raise HTTPException(400, "文件超过 8MB")
+    if not raw:
+        raise HTTPException(400, "空文件")
+
+    from app.docs_extract import extract_text_from_file
+    from app.rag import UPLOAD_DIR, save_note_doc
+
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    stored = UPLOAD_DIR / f"{uuid4().hex}{suffix}"
+    stored.write_bytes(raw)
+    try:
+        text = extract_text_from_file(stored)
+    except Exception as exc:  # noqa: BLE001
+        stored.unlink(missing_ok=True)
+        raise HTTPException(400, str(exc)) from exc
+
+    doc = save_note_doc(
+        {
+            "id": uuid4().hex,
+            "filename": name,
+            "path": str(stored.relative_to(Path(__file__).resolve().parent.parent)),
+            "company": (company or "").strip(),
+            "date": (date or "").strip(),
+            "time": (time or "").strip(),
+            "text": text,
+        }
+    )
+    _safe_rebuild_rag()
+    return {
+        "id": doc["id"],
+        "filename": name,
+        "chars": len(text),
+        "company": doc.get("company") or "",
+        "preview": text[:240],
+    }
 
 
 @app.get("/api/journal")
@@ -300,12 +415,28 @@ def api_journal() -> dict:
     context = today_context_bundle(today)
     interviews = list_all_interviews()
     stats = analyze_interviews()
+    try:
+        from app.rag import list_note_docs
+
+        note_docs = [
+            {
+                "id": d.get("id"),
+                "filename": d.get("filename"),
+                "company": d.get("company") or "",
+                "date": d.get("date") or "",
+                "chars": len(str(d.get("text") or "")),
+            }
+            for d in list_note_docs()
+        ]
+    except Exception:  # noqa: BLE001
+        note_docs = []
     return {
         "goals": goals,
         "days": days,
         "context": context,
         "interviews": interviews,
         "interview_stats": stats,
+        "note_docs": note_docs,
     }
 
 

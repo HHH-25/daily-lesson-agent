@@ -25,6 +25,10 @@ class DayState(TypedDict, total=False):
     analysis: str  # 求职复盘文案
     suggestions: str  # 求职建议
     summary: str  # synthesizer 今日板 / 求职报告收口
+    ask_query: str
+    ask_mode: str  # semantic | time
+    ask_chunks: list[dict[str, Any]]
+    ask_answer: str
     tool_summary: str
     logs: Annotated[list[dict], operator.add]
     tool_calls: Annotated[list[dict], operator.add]

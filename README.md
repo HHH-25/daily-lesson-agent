@@ -22,13 +22,16 @@ uvicorn app.main:app --reload
 
 **三入口**：生成今日课 · 晚间复盘 · 求职复盘（Supervisor 分派 `interview=true`）。
 
-**数据录入**：目标页可「＋添加目标」；今日页可选驱动目标，并用「＋面试 / ＋会议/占用」写入 JSON（面试含 `stage` / `insights`）。求职页可改阶段。录入项下次点「生成今日课」才进课表。
+**数据录入**：目标页可「＋添加目标」；今日页「＋面试」加公司。求职页可手写后记，或 **上传 PDF/Word 整份面经入库**（问答会检索）。
+
+首次面经语义检索会下载 `BAAI/bge-small-zh-v1.5`（无新 API key）。国内可设 `HF_ENDPOINT`。`RAG_SKIP_EMBED=1` 时只走关键词。向量库存 `data/chroma/`，不进 Git。
 
 ## Smoke
 
 ```bash
 python scripts\seed.py
 python scripts\smoke_analyze.py
+python scripts\smoke_ask.py
 python scripts\capture_sample_run.py
 ```
 
